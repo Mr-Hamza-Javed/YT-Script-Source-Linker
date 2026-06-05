@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="ur">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Source Linker</title>
+<style>
+  :root{
+    --bg:#0b0f1a; --panel:#121829; --panel2:#0e1422; --line:#26304a;
+    --txt:#e7ecf6; --muted:#8b96ad; --accent:#6d8bff; --accent2:#37e0c8;
+    --ok:#37d399; --warn:#f5b54a; --err:#ff6b6b; --chip:#1b2438;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1200px 600px at 80% -10%,#1a2votes 0,transparent),var(--bg);
+    background:radial-gradient(1100px 500px at 85% -15%,#16203a 0,transparent 60%),var(--bg);
+    color:var(--txt);font:15px/1.55 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;padding:26px 16px 60px}
+  .wrap{max-width:1020px;margin:0 auto}
+  header.app{text-align:center;margin-bottom:22px}
+  header.app h1{margin:0;font-size:26px;letter-spacing:.3px;
+    background:linear-gradient(90deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;color:transparent}
+  header.app p{margin:6px 0 0;color:var(--muted);font-size:13.5px}
+  .card{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);
+    border-radius:16px;padding:18px;margin:14px 0;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+  .card h2{margin:0 0 12px;font-size:15px;display:flex;align-items:center;gap:8px;color:var(--txt)}
+  .card h2 .num{width:22px;height:22px;border-radius:7px;background:var(--chip);color:var(--accent2);
+    display:inline-flex;align-items:center;justify-content:center;font-size:12px;border:1px solid var(--line)}
+  label.fld{display:block;font-size:12.5px;color:var(--muted);margin:0 0 6px}
+  textarea,input,select{width:100%;background:#0a0f1c;color:var(--txt);border:1px solid var(--line);
+    border-radius:10px;padding:11px 12px;font-size:14px;font-family:inherit;outline:none;transition:.15s}
+  textarea{min-height:150px;resize:vertical;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;line-height:1.5}
+  textarea:focus,input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(109,139,255,.15)}
+  .row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media(max-width:680px){.row,.row2{grid-template-columns:1fr}}
+  .modes{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+  .mode{border:1px solid var(--line);border-radius:12px;padding:12px;cursor:pointer;background:#0a0f1c;transition:.15s}
+  .mode:hover{border-color:#3a4straße}
+  .mode.active{border-color:var(--accent);background:rgba(109,139,255,.08);box-shadow:0 0 0 1px var(--accent) inset}
+  .mode b{font-size:13.5px}
+  .mode code{display:block;margin-top:5px;color:var(--accent2);font-size:11.5px;font-family:ui-monospace,monospace;word-break:break-all}
+  .mode small{display:block;margin-top:6px;color:var(--muted);font-size:11.5px}
+  .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
+  button{border:none;border-radius:11px;padding:12px 18px;font-size:14px;font-weight:600;cursor:pointer;transition:.15s}
+  .btn-primary{background:linear-gradient(90deg,var(--accent),#5b7bff);color:#fff}
+  .btn-primary:hover{filter:brightness(1.08)}
+  .btn-ghost{background:var(--chip);color:var(--txt);border:1px solid var(--line)}
+  .btn-ghost:hover{border-color:var(--accent)}
+  .stats{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+  .stat{background:var(--chip);border:1px solid var(--line);border-radius:10px;padding:8px 12px;min-width:92px}
+  .stat .v{font-size:18px;font-weight:700}
+  .stat .k{font-size:11px;color:var(--muted)}
+  .msg{border-radius:10px;padding:10px 12px;margin:8px 0;font-size:13px;border:1px solid;display:flex;gap:9px;align-items:flex-start}
+  .msg.err{background:rgba(255,107,107,.08);border-color:rgba(255,107,107,.4);color:#ffb4b4}
+  .msg.warn{background:rgba(245,181,74,.08);border-color:rgba(245,181,74,.4);color:#ffd89a}
+  .msg.ok{background:rgba(55,211,153,.08);border-color:rgba(55,211,153,.4);color:#a7f0cf}
+  .msg.info{background:rgba(109,139,255,.08);border-color:rgba(109,139,255,.35);color:#bcc8ff}
+  .msg .ico{font-size:15px;line-height:1.2}
+  .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+  .chips span{background:rgba(0,0,0,.25);border:1px solid var(--line);border-radius:6px;padding:1px 7px;font-size:12px;font-family:ui-monospace,monospace}
+  table.src{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:6px}
+  table.src th,table.src td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--line);vertical-align:top}
+  table.src th{color:var(--muted);font-weight:600;font-size:11.5px}
+  table.src td.n{color:var(--accent2);font-family:ui-monospace,monospace}
+  table.src a{color:var(--accent);word-break:break-all}
+  table.src .bad{color:var(--err)}
+  .out-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+  .hide{display:none}
+  details summary{cursor:pointer;color:var(--muted);font-size:13px;user-select:none}
+  .hint{color:var(--muted);font-size:12px;margin-top:8px}
+  .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--ok);
+    color:#062;padding:10px 18px;border-radius:10px;font-weight:600;opacity:0;transition:.25s;pointer-events:none}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="app">
+    <h1>Source Linker</h1>
+    <p>AI Visual-Guide output me sources ko automatically link karein — flexible, safe aur fully validated.</p>
+  </header>
+
+  <!-- INPUT -->
+  <div class="card">
+    <h2><span class="num">1</span> Input</h2>
+    <label class="fld">Poora AI output yahan paste karein (sections + tables + end wali source list):</label>
+    <textarea id="inText" placeholder="Yahan apna poora output paste karein..."></textarea>
+    <div class="actions" style="margin-top:10px">
+      <button class="btn-ghost" id="btnExample">Example load karein</button>
+      <button class="btn-ghost" id="btnClear">Clear</button>
+    </div>
+    <details style="margin-top:12px">
+      <summary>Optional: Source list alag se paste karein (override)</summary>
+      <p class="hint">Agar app aap ki source list khud detect na kar paaye, to sirf source list yahan paste karein. Yeh diya gaya ho to map isi se banega.</p>
+      <textarea id="inSources" style="min-height:90px" placeholder="[1] Title — https://...\n[2] Title — https://..."></textarea>
+    </details>
+  </div>
+
+  <!-- SETTINGS -->
+  <div class="card">
+    <h2><span class="num">2</span> Settings</h2>
+    <div class="modes">
+      <div class="mode active" data-mode="link" id="modeLink">
+        <b>Link Only</b>
+        <code>[12] → [[12]](url)</code>
+        <small>Sirf number clickable banega.</small>
+      </div>
+      <div class="mode" data-mode="full" id="modeFull">
+        <b>Full Source</b>
+        <code>[12] → [Title](url)</code>
+        <small>Poora title + link replace hoga.</small>
+      </div>
+    </div>
+
+    <div class="row">
+      <div>
+        <label class="fld">Before string (har source ke shuru me)</label>
+        <input id="optBefore" placeholder="khali chhor dein ya jaise ( ">
+      </div>
+      <div>
+        <label class="fld">After string (har source ke end me)</label>
+        <input id="optAfter" placeholder="khali ya jaise )  ">
+      </div>
+      <div>
+        <label class="fld">Join (aik cell me multiple sources ke beech)</label>
+        <input id="optJoin" value=", ">
+      </div>
+    </div>
+    <p class="hint">Tip: Full mode me jab aik jagah kayi sources aayein to <b>Before/After/Join</b> se clutter control karein (e.g. Before <code>(</code>, After <code>)</code>).</p>
+
+    <div class="row2" style="margin-top:12px">
+      <div>
+        <label class="fld">Missing reference (jis ka source list me number nahi)</label>
+        <select id="optMissing">
+          <option value="keep">Waise hi rehne dein — safe (default)</option>
+          <option value="mark">Mark karein ⚠️</option>
+          <option value="remove">Hata dein</option>
+        </select>
+      </div>
+      <div>
+        <label class="fld">Source list detection</label>
+        <select id="optDetect">
+          <option value="auto">Auto-detect (recommended)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="actions" style="margin-top:16px">
+      <button class="btn-primary" id="btnRun">Generate karein</button>
+    </div>
+  </div>
+
+  <!-- REPORT -->
+  <div class="card hide" id="reportCard">
+    <h2><span class="num">3</span> Report</h2>
+    <div class="stats" id="stats"></div>
+    <div id="messages"></div>
+    <details style="margin-top:10px" id="srcWrap">
+      <summary>Detect ki gayi sources dekhein</summary>
+      <div id="srcTableWrap"></div>
+    </details>
+  </div>
+
+  <!-- OUTPUT -->
+  <div class="card hide" id="outCard">
+    <div class="out-head">
+      <h2 style="margin:0"><span class="num">4</span> Output</h2>
+      <div class="actions" style="margin:0">
+        <button class="btn-ghost" id="btnCopy">Copy</button>
+        <button class="btn-ghost" id="btnDownload">Download .md</button>
+      </div>
+    </div>
+    <textarea id="outText" readonly style="min-height:230px"></textarea>
+  </div>
+
+</div>
+<div class="toast" id="toast">Copy ho gaya!</div>
+
+<script>
+"use strict";
+
+/* ---------- helpers ---------- */
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+function urlSafe(u){ // wrap url in <> if it has spaces or parentheses
+  return /[\s()]/.test(u) ? '<'+u+'>' : u;
+}
+function escTitle(t){ // protect markdown link-text from [ ] breakage
+  return String(t).replace(/([[\]])/g,'\\$1');
+}
+
+/* ---------- parse a single source line ---------- */
+function parseSourceLine(line){
+  if(!line || !line.trim()) return null;
+  const numMatch = line.match(/^\s*(?:[-*+]\s*)?(?:\[\s*(\d+)\s*\]|(\d+)\s*[.)])/);
+  if(!numMatch) return null;
+  const num = parseInt(numMatch[1] || numMatch[2], 10);
+  if(isNaN(num)) return null;
+  let rest = line.slice(numMatch[0].length);
+
+  // find URL: prefer markdown link target, else bare url
+  let url = null, urlIndex = -1;
+  const md = rest.match(/\[[^\]]*\]\(\s*<?(https?:\/\/[^\s)>]+)>?\s*\)/);
+  const bare = rest.match(/https?:\/\/[^\s)\]]+/);
+  if(md){ url = md[1]; urlIndex = md.index; }
+  else if(bare){ url = bare[0]; urlIndex = bare.index; }
+
+  let title = (urlIndex >= 0 ? rest.slice(0, urlIndex) : rest);
+  title = title.replace(/[\s\u2014\u2013\-:|•·>]+$/,'').replace(/^[\s\u2014\u2013:|•·]+/,'').trim();
+  if(url){ url = url.replace(/[.,;]+$/,''); }
+  return { num, title, url, raw: line.trim() };
+}
+
+function isSourceEntry(L){
+  return /^\s*(?:[-*+]\s*)?(?:\[\s*\d+\s*\]|\d+\s*[.)])/.test(L) && /https?:\/\//.test(L);
+}
+
+/* ---------- detect the source-list region inside main text ---------- */
+function detectSourceRegion(text){
+  const lines = text.split('\n');
+  let headerLine = -1;
+  for(let i=lines.length-1;i>=0;i--){
+    const L = lines[i].replace(/[#*_`>~]/g,'').trim();
+    if(/^full\s+video\s+sources\s*:?$/i.test(L) || /^sources\s*:?$/i.test(L) || /^references\s*:?$/i.test(L)){
+      headerLine = i; break;
+    }
+  }
+  let startLine;
+  if(headerLine >= 0){
+    startLine = headerLine;
+  } else {
+    // detect trailing contiguous block of source-entry lines
+    let i = lines.length-1;
+    while(i>=0 && lines[i].trim()==='') i--;
+    let firstEntry = -1, count = 0;
+    while(i>=0){
+      const L = lines[i];
+      if(L.trim()===''){ i--; continue; }
+      if(isSourceEntry(L)){ firstEntry = i; count++; i--; }
+      else break;
+    }
+    if(firstEntry>=0 && count>=1){ startLine = firstEntry; }
+    else return null;
+  }
+  let idx=0;
+  for(let k=0;k<startLine;k++) idx += lines[k].length + 1;
+
+  const entries = [];
+  const from = (headerLine>=0 ? headerLine+1 : startLine);
+  for(let k=from;k<lines.length;k++){
+    const e = parseSourceLine(lines[k]);
+    if(e) entries.push(e);
+  }
+  return { startIndex: idx, entries, headerFound: headerLine>=0 };
+}
+
+/* ---------- build map ---------- */
+function buildMap(entries){
+  const map = {}, dups = new Set(), noUrl = [];
+  entries.forEach(e=>{
+    if(map[e.num]!==undefined){ dups.add(e.num); return; } // keep first
+    map[e.num] = e;
+    if(!e.url) noUrl.push(e.num);
+  });
+  return { map, dups:[...dups], noUrl };
+}
+
+/* ---------- main processing ---------- */
+function run(){
+  const raw = $('inText').value.replace(/\r\n?/g,'\n');
+  const overrideSrc = $('inSources').value.replace(/\r\n?/g,'\n').trim();
+  const mode = document.querySelector('.mode.active').dataset.mode;
+  const opts = {
+    before: $('optBefore').value,
+    after:  $('optAfter').value,
+    join:   $('optJoin').value
+  };
+  const missingMode = $('optMissing').value;
+
+  const errors=[], warnings=[], infos=[];
+
+  if(!raw.trim()){
+    showReport({errors:['Input khali hai. Pehle apna output paste karein.'],warnings:[],infos:[]}, null, null);
+    $('outCard').classList.add('hide');
+    return;
+  }
+
+  // figure out body + tail + source entries
+  let region = detectSourceRegion(raw);
+  let body, tail, entries;
+
+  if(overrideSrc){
+    const ov = overrideSrc.split('\n').map(parseSourceLine).filter(Boolean);
+    entries = ov;
+    if(region){ body = raw.slice(0, region.startIndex); tail = raw.slice(region.startIndex); }
+    else { body = raw; tail = ''; }
+    if(!ov.length) errors.push('Override source list me koi valid entry nahi mili. Format: [1] Title — https://...');
+    else infos.push('Override source list use ho rahi hai (' + ov.length + ' entries).');
+  } else if(region){
+    entries = region.entries;
+    body = raw.slice(0, region.startIndex);
+    tail = raw.slice(region.startIndex);
+    if(!region.headerFound) warnings.push('"FULL VIDEO SOURCES" header nahi mila, lekin end me source list detect ho gayi. Agar yeh galat hai to source list ko override box me paste karein.');
+    if(!entries.length) errors.push('Source list region to mila magar koi entry parse nahi hui. Format check karein.');
+  } else {
+    showReport({
+      errors:['Source list detect nahi hui. Yaqeeni banayein ke document ke end me "FULL VIDEO SOURCES" list maujood hai — ya source list ko upar wale override box me paste karein.'],
+      warnings:[], infos:[]
+    }, null, null);
+    $('outCard').classList.add('hide');
+    return;
+  }
+
+  const { map, dups, noUrl } = buildMap(entries);
+  const definedNums = Object.keys(map).map(Number);
+
+  if(!definedNums.length){ errors.push('Koi valid source (number + URL) map nahi bana.'); }
+  if(dups.length) warnings.push('Source list me duplicate numbers mile (pehla wala use kiya gaya): ' + dups.map(n=>'['+n+']').join(', '));
+  if(noUrl.length) warnings.push('In sources ka URL nahi mila: ' + noUrl.map(n=>'['+n+']').join(', '));
+
+  // process body references
+  let refOccurrences = 0, replacedCount = 0, skippedLinked = 0;
+  const referenced = new Set();
+  const unresolved = {};
+
+  const refRe = /\[\s*(\d+(?:\s*,\s*\d+)*)\s*\]/g;
+  const newBody = body.replace(refRe, (m, g, offset, str) => {
+    const before1 = str[offset-1];
+    const afterEnd = str[offset + m.length];
+    // skip already-linked: [N](url) or [[N]](url)
+    if(before1 === '[' || afterEnd === '('){ skippedLinked++; return m; }
+
+    const nums = g.split(',').map(s=>parseInt(s.trim(),10)).filter(n=>!isNaN(n));
+    const pieces = [];
+    nums.forEach(n=>{
+      referenced.add(n);
+      refOccurrences++;
+      const e = map[n];
+      if(e && e.url){
+        replacedCount++;
+        const core = (mode==='link')
+          ? '[['+n+']]('+urlSafe(e.url)+')'
+          : '['+(escTitle(e.title)||('Source '+n))+']('+urlSafe(e.url)+')';
+        pieces.push(opts.before + core + opts.after);
+      } else {
+        unresolved[n] = (unresolved[n]||0)+1;
+        if(missingMode==='keep') pieces.push('['+n+']');
+        else if(missingMode==='mark') pieces.push('['+n+']⚠️');
+        // 'remove' => push nothing
+      }
+    });
+    const nonEmpty = pieces.filter(p => p !== '');
+    return nonEmpty.join(nums.length>1 ? opts.join : '');
+  });
+
+  // diagnostics
+  const unresolvedNums = Object.keys(unresolved).map(Number).sort((a,b)=>a-b);
+  if(unresolvedNums.length){
+    warnings.push('In references ka source list me koi match nahi: ' + unresolvedNums.map(n=>'['+n+']').join(', ') +
+      '  — (yeh shayad missing sources hon ya sirf brackets me likhe numbers/years hon). Inpe abhi "'+missingLabel(missingMode)+'" apply hua hai.');
+  }
+  if(skippedLinked) warnings.push(skippedLinked + ' reference pehle se linked the — unhe dobara process nahi kiya (safe).');
+
+  // gaps
+  if(definedNums.length){
+    const mx = Math.max(...definedNums);
+    const gaps=[];
+    for(let i=1;i<=mx;i++) if(map[i]===undefined) gaps.push(i);
+    if(gaps.length) infos.push('Source numbering me gaps hain (missing numbers): ' + gaps.map(n=>'['+n+']').join(', '));
+  }
+  // unused
+  const unused = definedNums.filter(n=>!referenced.has(n)).sort((a,b)=>a-b);
+  if(unused.length) infos.push('Yeh sources kahin reference nahi huye: ' + unused.map(n=>'['+n+']').join(', '));
+
+  if(replacedCount>0 && !errors.length) {
+    infos.unshift('Ho gaya — ' + replacedCount + ' reference link ho gaye. (Sources aur baqi text bilkul intact hain.)');
+  }
+
+  // output
+  const finalText = newBody + tail;
+  $('outText').value = finalText;
+  $('outCard').classList.toggle('hide', !!errors.length && replacedCount===0);
+
+  showReport({errors,warnings,infos}, {
+    sources: definedNums.length,
+    refs: refOccurrences,
+    replaced: replacedCount,
+    missing: unresolvedNums.length
+  }, map);
+}
+
+function missingLabel(m){ return m==='keep'?'waise hi rakha':(m==='mark'?'mark (⚠️)':'remove'); }
+
+/* ---------- render report ---------- */
+function showReport({errors,warnings,infos}, stats, map){
+  $('reportCard').classList.remove('hide');
+  // stats
+  const sEl = $('stats');
+  if(stats){
+    sEl.innerHTML = [
+      ['Sources', stats.sources],
+      ['References', stats.refs],
+      ['Linked', stats.replaced],
+      ['Unresolved', stats.missing]
+    ].map(([k,v])=>'<div class="stat"><div class="v">'+v+'</div><div class="k">'+k+'</div></div>').join('');
+  } else sEl.innerHTML='';
+
+  // messages
+  const m = [];
+  errors.forEach(t=>m.push(msg('err','✕',t)));
+  warnings.forEach(t=>m.push(msg('warn','▲',t)));
+  infos.forEach(t=>m.push(msg(t.startsWith('Ho gaya')?'ok':'info', t.startsWith('Ho gaya')?'✓':'i',t)));
+  $('messages').innerHTML = m.join('') || msg('ok','✓','Sab theek hai.');
+
+  // source table
+  const wrap = $('srcWrap');
+  if(map && Object.keys(map).length){
+    wrap.classList.remove('hide');
+    const rows = Object.keys(map).map(Number).sort((a,b)=>a-b).map(n=>{
+      const e=map[n];
+      const u = e.url ? '<a href="'+esc(e.url)+'" target="_blank" rel="noopener">'+esc(e.url)+'</a>' : '<span class="bad">— URL nahi mila —</span>';
+      return '<tr><td class="n">['+n+']</td><td>'+esc(e.title||'(no title)')+'</td><td>'+u+'</td></tr>';
+    }).join('');
+    $('srcTableWrap').innerHTML = '<table class="src"><tr><th>#</th><th>Title</th><th>URL</th></tr>'+rows+'</table>';
+  } else { wrap.classList.add('hide'); }
+}
+function msg(cls,ico,txt){ return '<div class="msg '+cls+'"><span class="ico">'+ico+'</span><span>'+esc(txt)+'</span></div>'; }
+
+/* ---------- UI wiring ---------- */
+document.querySelectorAll('.mode').forEach(el=>{
+  el.addEventListener('click',()=>{
+    document.querySelectorAll('.mode').forEach(x=>x.classList.remove('active'));
+    el.classList.add('active');
+  });
+});
+$('btnRun').addEventListener('click', run);
+$('btnClear').addEventListener('click', ()=>{
+  $('inText').value=''; $('inSources').value='';
+  $('outText').value=''; $('outCard').classList.add('hide'); $('reportCard').classList.add('hide');
+});
+$('btnCopy').addEventListener('click', async ()=>{
+  const t=$('outText').value;
+  try{ await navigator.clipboard.writeText(t); toast('Copy ho gaya!'); }
+  catch(e){ $('outText').select(); document.execCommand('copy'); toast('Copy ho gaya!'); }
+});
+$('btnDownload').addEventListener('click', ()=>{
+  const blob=new Blob([$('outText').value],{type:'text/markdown'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob); a.download='visual-guide-linked.md';
+  a.click(); URL.revokeObjectURL(a.href);
+});
+function toast(t){ const el=$('toast'); el.textContent=t; el.classList.add('show'); setTimeout(()=>el.classList.remove('show'),1600); }
+
+/* ---------- example ---------- */
+$('btnExample').addEventListener('click', ()=>{
+  $('inText').value =
+`## Section 1
+
+| Script Line | Visual Guide |
+| --- | --- |
+| In 2024, Disney made a major move in gaming. | \`[CONTEXT]:\` Yaha per Disney ke Epic Games investment ki baat hai. \`[B-ROLL]:\` Disney logo + Epic Games office. \`[SEARCH TERMS]:\` Disney Epic Games deal 2024 \`[SOURCES]: [1]\` |
+| The investment was worth billions. | \`[B-ROLL]:\` Finance b-roll. \`[TEXT OVERLAY]:\` $1.5 Billion \`[SOURCES]: [1], [2]\` |
+
+## Section 2
+
+| Script Line | Visual Guide |
+| --- | --- |
+| Fortnite became a cultural phenomenon. | \`[B-ROLL]:\` Fortnite gameplay footage. \`[SOURCES]: [2]\` |
+
+FULL VIDEO SOURCES
+[1] Disney invests $1.5B in Fortnite maker Epic Games to build a persistent game universe - GamesBeat (venturebeat.com) — https://venturebeat.com/games/disney-invests-1-5b-in-fortnite-maker-epic-games-to-build-a-persistent-game-universe/
+[2] Epic Games Newsroom — [https://www.epicgames.com/site/en-US/news](https://www.epicgames.com/site/en-US/news)`;
+});
+</script>
+</body>
+</html>
